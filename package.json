@@ -1,0 +1,29 @@
+{
+  "name": "recochitasassistant",
+  "version": "1.0.0",
+  "description": "RecochitasAssistant: Un chatbot para gestionar partidos amateurs y reservar cupos en tiempo real con tus amigos.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "nodemon --exec ts-node src/bot.ts"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Simonba97/RecochitasAssistant-ChatBot.git"
+  },
+  "author": "Simón Bustamante Alzate",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Simonba97/RecochitasAssistant-ChatBot/issues"
+  },
+  "homepage": "https://github.com/Simonba97/RecochitasAssistant-ChatBot#readme",
+  "dependencies": {
+    "node-telegram-bot-api": "^0.63.0",
+    "telegraf": "^4.14.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.2.2"
+  }
+}
