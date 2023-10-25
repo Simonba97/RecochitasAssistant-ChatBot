@@ -1,0 +1,13 @@
+{
+  "goalkeepers": [
+    {
+      "dateTimeReservation": "25/10/2023 00:33:57",
+      "fullName": "Simón Bustamante",
+      "pay": false,
+      "postion": "Goalkeeper",
+      "chatId": 1699289627
+    }
+  ],
+  "players": [],
+  "substitutes": []
+}
