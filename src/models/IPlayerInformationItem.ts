@@ -7,7 +7,7 @@
 export interface IPlayerInformationItem {
     chatId: string,
     fullName: string,
-    postion: 'Goalkeeper' | 'Defence' | 'Midfielder' | 'Forward',
+    postion: string,
     dateTimeReservation: string,
     pay: boolean,
 } // end IPlayerInformationItem
