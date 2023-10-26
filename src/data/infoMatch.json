@@ -4,5 +4,5 @@
     "soccerField": "Sin asignar",
     "price": "$6,000",
     "maxPlayers": 9,
-    "available": true
+    "available": false
 }

@@ -1,85 +1,13 @@
 {
-  "goalkeepers": [
-    {
-      "dateTimeReservation": "25/10/2023 16:39:25",
-      "fullName": "Alexander",
-      "pay": false,
-      "postion": "goalkeeper",
-      "chatId": 1699283327
-    }
-  ],
+  "goalkeepers": [],
   "players": [
     {
-      "dateTimeReservation": "27/01/2022 10:00",
-      "fullName": "John Doe",
-      "pay": "false",
-      "postion": "Forward",
-      "chatId": 1234567890
-    },
-    {
-      "dateTimeReservation": "28/01/2022 15:30",
-      "fullName": "Jane Smith",
-      "pay": "false",
-      "postion": "Midfielder",
-      "chatId": 2345678901
-    },
-    {
-      "dateTimeReservation": "29/01/2022 09:45",
+      "dateTimeReservation": "26/10/2023 14:46:02",
       "fullName": "Simón Bustamante",
-      "pay": "false",
-      "postion": "Defender",
-      "chatId": 1699289627
-    },
-    {
-      "dateTimeReservation": "30/01/2022 14:15",
-      "fullName": "Sarah Williams",
-      "pay": "false",
-      "postion": "Goalkeeper",
-      "chatId": 4567890123
-    },
-    {
-      "dateTimeReservation": "31/01/2022 11:30",
-      "fullName": "Michael Brown",
-      "pay": "false",
-      "postion": "Forward",
-      "chatId": 5678901234
-    },
-    {
-      "dateTimeReservation": "01/02/2022 13:45",
-      "fullName": "Jessica Davis",
-      "pay": "false",
-      "postion": "Midfielder",
-      "chatId": 6789012345
-    },
-    {
-      "dateTimeReservation": "26/10/2023 11:53:24",
-      "fullName": "Elisa Bustamante A",
       "pay": false,
-      "postion": "midfielder",
-      "chatId": 5405836849
+      "postion": "defence",
+      "chatId": 1699289627
     }
   ],
-  "substitutes": [
-    {
-      "dateTimeReservation": "02/02/2022 10:30",
-      "fullName": "Matthew Wilson",
-      "pay": "false",
-      "postion": "Defender",
-      "chatId": 7890123456
-    },
-    {
-      "dateTimeReservation": "03/02/2022 12:15",
-      "fullName": "Emily Taylor",
-      "pay": "false",
-      "postion": "Goalkeeper",
-      "chatId": 8901234567
-    },
-    {
-      "dateTimeReservation": "04/02/2022 09:00",
-      "fullName": "Daniel Anderson",
-      "pay": "false",
-      "postion": "Forward",
-      "chatId": 9012345678
-    }
-  ]
+  "substitutes": []
 }

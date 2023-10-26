@@ -29,6 +29,7 @@ const fs_1 = require("fs");
 const date_fns_1 = require("date-fns");
 const locale_1 = require("date-fns/locale");
 const Global_1 = require("./utils/Global");
+const markup_1 = require("telegraf/typings/markup");
 // Utiliza las constantes en tu código
 const telegramToken = config.BOT_TOKEN;
 // Importa el módulo 'config'
@@ -42,10 +43,11 @@ bot.on('text', (ctx) => {
         [telegraf_1.Markup.button.callback('RESERVAR MI CUPO PARA EL COTEJO ✍🏽', 'reserveSpot')]
     ]);
     // Enviar un mensaje con el teclado
-    ctx.reply('¡Bienvenido al Asistente Virtual de Recochitas F.C.!', keyboard);
+    ctx.reply(Global_1.Global.MSG_WELCOME, keyboard);
 });
 // Manejar las acciones de los botones
 bot.action('infoGame', (ctx) => {
+    (0, markup_1.removeKeyboard)();
     //Leemos la información del partido
     readFile(Global_1.Global.FILEPATH_INFOMATCH)
         .then((response) => {
@@ -56,32 +58,25 @@ bot.action('infoGame', (ctx) => {
             const dateMatch = infoMatchData.fullDate;
             const fecha = (0, date_fns_1.parse)(dateMatch, "dd/MM/yyyy HH:mm", new Date());
             // Mensaje de respuesta con información del partido
-            message = `\n` +
-                `ℹ️ *INFORMACIÓN DEL PARTIDO PROGRAMADO:* ℹ️\n` +
-                `\n` +
-                `📍 *Cancha:* ${infoMatchData.ubication}\n` +
-                `🏟️ *Numero de cancha:* ${infoMatchData.soccerField}\n` +
-                `📆 *Fecha y hora:* ${(0, date_fns_1.format)(fecha, "EEEE, d 'de' MMMM 'de' yyyy 'a las' h:mm a", { locale: locale_1.es })}\n` +
-                `💸 *Costo:* ${infoMatchData.price}\n` +
-                `\n`;
+            message = Global_1.Global.BASE_MATCH_INFO
+                .replace('{{ubication}}', infoMatchData.ubication)
+                .replace('{{soccerField}}', infoMatchData.soccerField)
+                .replace('{{fullDate}}', (0, date_fns_1.format)(fecha, "EEEE, d 'de' MMMM 'de' yyyy 'a las' h:mm a", { locale: locale_1.es }))
+                .replace('{{price}}', infoMatchData.price);
         }
         else { // Si no existe partido disponible
-            // Mensaje de respuesta con información 
-            message = '\n' +
-                '*LO SENTIMOS MUCHO* 🥲 \n' +
-                '_Aún no hay programación para encarar la pecosa_ ⚽️❌' +
-                '\n';
+            message = Global_1.Global.MSG_NO_MATCH_PROGRAMMING;
         }
         ctx.replyWithMarkdownV2(message);
     })
         .catch((error) => {
-        ctx.reply('¡Ups! Parece que ha ocurrido un error en el proceso. Lamentamos las molestias.');
+        ctx.reply(Global_1.Global.MSG_CATCH_ERROR);
         return;
     });
 }); // end infoGame
 bot.action('seeListQuotas', (ctx) => {
-    ctx.reply('Cargando...');
-    printListQuotas()
+    var _a;
+    printListQuotas(Number((_a = ctx.update.callback_query.message) === null || _a === void 0 ? void 0 : _a.chat.id))
         .then((response) => {
         ctx.replyWithMarkdownV2(response);
     });
@@ -99,9 +94,6 @@ bot.action(/typePlayer.*/, (ctx) => {
     const typePlayer = selectedOption != Global_1.Global.TYPE_GOALKEEPER ? 'goalkeeper' : 'players';
     // Información del usuario actual
     const messageData = ctx.update.callback_query.message;
-    // Archivo donde se almacena la información de las reservas
-    // Mensaje de respuesta
-    let message = "";
     // Leemos el archivo
     readFile(Global_1.Global.FILEPATH_MATCHQUOTAS)
         .then((response) => {
@@ -111,11 +103,7 @@ bot.action(/typePlayer.*/, (ctx) => {
         const haveReservation = findReservationByChatId(infoMatchQuotas, messageData.chat.id);
         // Control para que no se pueda reservar si ya tiene una reserva activa
         if (haveReservation) {
-            message = '\n' +
-                '*YA TIENES UNA RESERVA ACTIVA* 🥲 \n' +
-                '_No te puedes volver a inscribri, ya tienes una reserva activa_ ⚽️❌' +
-                '\n';
-            ctx.replyWithMarkdownV2(message);
+            ctx.replyWithMarkdownV2(Global_1.Global.MSG_RESERVE_FAIL);
             return;
         }
         // Control para determinar si la reserva se realiza en la titular o suplencia
@@ -125,7 +113,7 @@ bot.action(/typePlayer.*/, (ctx) => {
         // Información del usuario para la reserva ya bien sea en la titular o suplencia
         const infoReservation = {
             dateTimeReservation: (0, date_fns_1.format)(new Date(), "dd/MM/yyyy HH:mm:ss"),
-            fullName: `${messageData === null || messageData === void 0 ? void 0 : messageData.chat.first_name} ${messageData === null || messageData === void 0 ? void 0 : messageData.chat.last_name}`,
+            fullName: `${messageData === null || messageData === void 0 ? void 0 : messageData.chat.first_name} ${messageData === null || messageData === void 0 ? void 0 : messageData.chat.last_name}`.replace(/[^\w\sáéíóúÁÉÍÓÚ]/gi, ''),
             pay: false,
             postion: selectedOption.replace('typePlayer', '').toLowerCase(),
             chatId: messageData.chat.id
@@ -144,22 +132,18 @@ bot.action(/typePlayer.*/, (ctx) => {
         fs_1.promises.writeFile(Global_1.Global.FILEPATH_MATCHQUOTAS, JSON.stringify(infoMatchQuotas, null, 2))
             .then(() => {
             // Mensaje de confirmación de reserva para el usuario
-            message = '\n' +
-                '*RESERVA EXITOSA* ✅ \n' +
-                '_Se realizó la reserva para el partido correctamente_ ✍🏽' +
-                '\n';
-            ctx.replyWithMarkdownV2(message);
+            ctx.replyWithMarkdownV2(Global_1.Global.MSG_RESERVE_SUCCESS);
             //Detener el Bot
             bot.stop();
             return;
         })
             .catch((error) => {
-            ctx.reply('¡Ups! Parece que ha ocurrido un error en el proceso. Lamentamos las molestias.');
+            ctx.reply(Global_1.Global.MSG_CATCH_ERROR);
             return;
         });
     })
         .catch((error) => {
-        ctx.reply('¡Ups! Parece que ha ocurrido un error en el proceso. Lamentamos las molestias.');
+        ctx.reply(Global_1.Global.MSG_CATCH_ERROR);
         return;
     });
 }); // end reserveSpot
@@ -173,50 +157,30 @@ function findReservationByChatId(infoMatchQuotas, chatId) {
         infoMatchQuotas.players.find((player) => Number(player.chatId) === chatId) ||
         infoMatchQuotas.substitutes.find((player) => Number(player.chatId) === chatId);
 } // end findReservationByChatId
-function printListQuotas() {
+function printListQuotas(chatId) {
     return readFile(Global_1.Global.FILEPATH_MATCHQUOTAS)
         .then((response) => {
         const infoMatchQuotas = response;
-        const baseRowPlayer = `*{{index}}* {{fullName}} ({{fdateReservation}})\n`;
-        const baseAllListPlayers = `\n` +
-            `*LISTA DE RESERVAS DE JUGADORES TITULARES Y RESERVAS* 📄\n` +
-            `_Campo Amor // Jueves, 26 de Octubre a las 9:00 PM_\n` +
-            `\n` +
-            `*PORTEROS:* 🧤\n` +
-            `{{bodyGoalkeeper}}` +
-            `\n` +
-            `*JUGADORES:* 🧤\n` +
-            `{{bodyPlayers}}` +
-            `\n` +
-            `*RESERVA:* 🧤\n` +
-            `{{bodySubstitutes}}` +
-            `\n`;
-        let bodyGoalkeeper = '';
-        infoMatchQuotas.goalkeepers.forEach((player, i) => {
-            const formattedRow = baseRowPlayer
-                .replace('{{index}}', (i + 1).toString())
-                .replace('{{fullName}}', player.fullName)
-                .replace('{{fdateReservation}}', player.dateTimeReservation);
-            bodyGoalkeeper += formattedRow;
-        });
-        console.log(bodyGoalkeeper);
-        alert('Hola');
-        return bodyGoalkeeper;
-        /* for (let i = 0; i < infoMatchQuotas.goalkeepers.length; i++) {
-            const player = infoMatchQuotas.goalkeepers[i];
-            const formattedRow = baseRowPlayer
-                .replace('{{index}}', (i + 1).toString())
-                .replace('{{fullName}}', player.fullName)
-                .replace('{{fdateReservation}}', player.dateTimeReservation);
-
-            result += formattedRow + '\n';
-        }
-
-
-        console.log(result);
-
-        return baseAllListPlayers.replace(`{{bodyGoalkeeper}}`, result); */
+        let bodyGoalkeeper = formattedRowPlayer(infoMatchQuotas.goalkeepers, chatId);
+        let bodyPlayers = formattedRowPlayer(infoMatchQuotas.players, chatId);
+        let bodySubstitutes = formattedRowPlayer(infoMatchQuotas.substitutes, chatId);
+        return Global_1.Global.BASE_ALL_LIST_PLAYERS
+            .replace('{{bodyGoalkeeper}}', bodyGoalkeeper)
+            .replace('{{bodyPlayers}}', bodyPlayers)
+            .replace('{{bodySubstitutes}}', bodySubstitutes);
     });
 } // end printListQuotas
+function formattedRowPlayer(playersInfo, chatId) {
+    let listPlayers = playersInfo.length === 0 ? `*1\\.*\n` : '';
+    playersInfo.forEach((player, i) => {
+        let formattedRow = Global_1.Global.BASE_ROW_PLAYER
+            .replace('{{index}}', (i + 1).toString())
+            .replace('{{fullName}}', player.fullName)
+            .replace('{{fdateReservation}}', player.dateTimeReservation)
+            .replace(/{{bold}}/gi, chatId === Number(player.chatId) ? '*' : '');
+        listPlayers += formattedRow;
+    });
+    return listPlayers;
+} // end formattedRowPlayer
 // Inicia el bot
 bot.launch();
