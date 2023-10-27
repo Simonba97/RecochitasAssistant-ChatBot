@@ -1,28 +1,37 @@
 import { Markup, Telegraf } from 'telegraf';
 import * as config from './config/config.json';
 import { IInfoMatchItem } from './models/IInfoMatchItem';
-import { promises as fs } from 'fs';
 import { IMatchQuotasItem } from './models/IMatchQuotasItem';
 import { parse, format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { IPlayerInformationItem } from './models/IPlayerInformationItem';
 import { Global } from './utils/Global';
+import { FileService } from './services/FileService';
+import { InfoMatchService } from './services/InfoMatchService';
+import { MatchQuotasService } from './services/MatchQuotasService';
+import { ReservationCancellationHistoryService } from './services/ReservationCancellationHistoryService';
 
 // Importa el módulo 'config'
 const bot = new Telegraf(config.BOT_TOKEN);
+// Services
+const _fileService: FileService = new FileService();
+const _infoMatchService: InfoMatchService = new InfoMatchService(_fileService);
+const _matchQuotasService: MatchQuotasService = new MatchQuotasService(_fileService);
+const _reservationCancellationHistoryService: ReservationCancellationHistoryService = new ReservationCancellationHistoryService(_fileService);
 
 // Maneja mensajes de texto
 bot.on('text', async (ctx) => {
 
     // Consulta de información del partido 
-    const infoMatchData: IInfoMatchItem = await getMatch();
+    const infoMatchData: IInfoMatchItem = await _infoMatchService.getMatch();
 
     if (infoMatchData.available) {
         // Crear un teclado personalizado con opciones
         const keyboard = Markup.inlineKeyboard([
             [Markup.button.callback('CONOCER INFORMACIÓN DEL PARTIDO ⏰', 'infoGame')],
             [Markup.button.callback('VER LISTA DE CUPOS DEL PARTIDO 📄', 'seeListQuotas')],
-            [Markup.button.callback('RESERVAR MI CUPO PARA EL COTEJO ✍🏽', 'reserveSpot')]
+            [Markup.button.callback('RESERVAR MI CUPO PARA EL COTEJO ✍🏽', 'reserveSpot')],
+            [Markup.button.callback('CANCELAR MI CUPO PARA EL COTEJO ✍🏽', 'removeSpot')]
         ]);
 
         // Enviar un mensaje con el teclado
@@ -44,7 +53,7 @@ bot.action('infoGame', async (ctx) => {
     let message: string = "";
 
     // Consulta de información del partido
-    const infoMatchData: IInfoMatchItem = await getMatch();
+    const infoMatchData: IInfoMatchItem = await _infoMatchService.getMatch();
 
     // Formateamos la fecha para presentarla adecuadamente
     const dateMatch = infoMatchData.fullDate;
@@ -67,7 +76,17 @@ bot.action('seeListQuotas', async (ctx) => {
     ctx.replyWithMarkdownV2(response);
 }); // end seeListQuotas
 
-bot.action('reserveSpot', (ctx) => {
+bot.action('reserveSpot', async (ctx) => {
+
+    // Buscamos si ya existe una reserva por el usuario
+    const messageData: any = ctx.update.callback_query.message;
+    const haveReservation = await _matchQuotasService.getReservationByChatId(messageData.chat.id);
+
+    // Control para que no se pueda reservar si ya tiene una reserva activa
+    if (haveReservation) {
+        ctx.replyWithMarkdownV2(Global.MSG_RESERVE_FAIL);
+        return;
+    }
 
     const options = Markup.inlineKeyboard([
         [Markup.button.callback('PORTERO', 'typePlayerGoalkeeper'), Markup.button.callback('DEFENSA', 'typePlayerDefence')],
@@ -79,122 +98,55 @@ bot.action('reserveSpot', (ctx) => {
 
 }); // end reserveSpot
 
-bot.action(/typePlayer.*/, async (ctx) => {
-    const selectedOption: string = ctx.match[0];
 
-    // Información del usuario actual
-    const messageData: any = ctx.update.callback_query.message;
-
-    // Leemos el archivo
-    const infoMatchQuotas: IMatchQuotasItem = await readFile(Global.FILEPATH_MATCHQUOTAS);
+bot.action('removeSpot', async (ctx) => {
 
     // Buscamos si ya existe una reserva por el usuario
-    const haveReservation = findReservationByChatId(infoMatchQuotas, messageData.chat.id);
+    const messageData: any = ctx.update.callback_query.message;
+    const haveReservation = await _matchQuotasService.getReservationByChatId(messageData.chat.id);
 
     // Control para que no se pueda reservar si ya tiene una reserva activa
-    if (haveReservation) {
-        ctx.replyWithMarkdownV2(Global.MSG_RESERVE_FAIL);
+    if (!haveReservation) {
+        ctx.replyWithMarkdownV2(Global.MSG_NO_RESERVE_SPOT);
         return;
     }
 
-    // Control para determinar si la reserva se realiza en la titular o suplencia
-    const reservationAvailable = selectedOption === Global.TYPE_GOALKEEPER
-        ? infoMatchQuotas.goalkeepers.length < 2
-        : infoMatchQuotas.players.length < 16;
+    const confirmOptions = Markup.inlineKeyboard([
+        [Markup.button.callback('NO ❌', 'confirmRemoveSpot_false'), Markup.button.callback('SI ✅', 'confirmRemoveSpot_true')]
+    ]);
 
-    // Información del usuario para la reserva ya bien sea en la titular o suplencia
-    const infoReservation: IPlayerInformationItem = {
-        dateTimeReservation: format(new Date(), "dd/MM/yyyy HH:mm:ss"),
-        fullName: `${messageData?.chat.first_name} ${messageData?.chat.last_name}`.replace(/[^\w\sáéíóúÁÉÍÓÚ]/gi, ''),
-        pay: false,
-        postion: selectedOption.replace('typePlayer', '').toLowerCase(),
-        chatId: messageData.chat.id
-    };
+    ctx.replyWithMarkdownV2(Global.MSG_DESCRIPTION_CONFIRM_REMOVE_SPOT);
+    ctx.reply(Global.MSG_TITLE_CONFIRM_REMOVE_SPOT, confirmOptions);
 
-    // Almacenamos la reserva en la titular o la suplencia
-    if (reservationAvailable) {
-        const targetArray = selectedOption === Global.TYPE_GOALKEEPER
-            ? infoMatchQuotas.goalkeepers
-            : infoMatchQuotas.players;
+}); // end manageSpot
 
-        targetArray.push(infoReservation);
-    } else {
-        infoMatchQuotas.substitutes.push(infoReservation);
+bot.action(/confirmRemoveSpot.*/, async (ctx) => {
+    const confirmationRemoveSpot: boolean = ctx.match[0].replace('confirmRemoveSpot_', '') === 'true';
+    if (!confirmationRemoveSpot) {
+        ctx.replyWithMarkdownV2('No se cancelo tu reserva');
+        return;
     }
 
-    // Guarda los datos en el archivo JSON
-    await writeFile(Global.FILEPATH_MATCHQUOTAS, infoMatchQuotas);
-    // Mensaje de confirmación de reserva para el usuario
-    ctx.replyWithMarkdownV2(Global.MSG_RESERVE_SUCCESS);
+    /* Información del jugador a cancelar */
+    const chatId = Number(ctx.update.callback_query.message?.chat.id);
+
+    /* Cancelación de la reserva */
+    const reservationPlayer: IPlayerInformationItem | undefined = await _matchQuotasService.removeReserve(chatId);
+    /* Adición del Historial de cancelación */
+    await _reservationCancellationHistoryService.addCancellation(reservationPlayer);
+
+    // Mensaje de confirmación de la Cancelación
+    ctx.replyWithMarkdownV2(Global.MSG_REMOVE_SPOT_SUCCESS);
 
 }); // end reserveSpot
 
+bot.action(/typePlayer.*/, async (ctx) => {
+    const messageData: any = ctx.update.callback_query.message;
+    _matchQuotasService.addReserve(messageData, ctx.match[0]);
 
-
-
-/**
- * Lee un archivo y devuelve su contenido como un objeto JSON.
- * @param {string} filePath - La ruta del archivo a leer.
- * @returns {Promise<any>} - Una promesa que se resuelve con el contenido del archivo como un objeto JSON.
- */
-async function readFile(filePath: string): Promise<any> {
-    try {
-        const data = await fs.readFile(filePath, 'utf8');
-        return JSON.parse(data);
-    } catch (error) {
-        // Manejar errores, como archivo no encontrado o JSON inválido
-        throw new Error(`Error al leer el archivo en ${filePath}: ${error}`);
-    }
-}
-
-/**
- * Escribe un objeto como contenido JSON en un archivo.
- * @param {string} filePath - La ruta del archivo donde se escribirá el contenido.
- * @param {IMatchQuotasItem} infoMatchQuotas - Los datos que se escribirán en el archivo.
- * @returns {Promise<void>} - Una promesa que se resuelve cuando la escritura se completa con éxito.
- */
-async function writeFile(filePath: string, infoMatchQuotas: IMatchQuotasItem): Promise<void> {
-    try {
-        const data = JSON.stringify(infoMatchQuotas, null, 2);
-        await fs.writeFile(filePath, data);
-    } catch (error) {
-        // Manejar errores, como archivo no encontrado o problemas de escritura
-        throw new Error(`Error al escribir en el archivo en ${filePath}: ${error}`);
-    }
-} // end writeFile
-
-/**
- * Obtiene la información de un partido desde un archivo.
- * @returns {Promise<IInfoMatchItem>} - Una promesa que se resuelve con la información del partido.
- */
-async function getMatch(): Promise<IInfoMatchItem> {
-    try {
-        // Leemos la información del partido y esperamos la respuesta
-        const infoMatchData: IInfoMatchItem = await readFile(Global.FILEPATH_INFOMATCH);
-        return infoMatchData;
-    } catch (error) {
-        // Manejar errores si la lectura del archivo falla
-        console.error('Error al obtener la información del partido:', error);
-        throw new Error('No se pudo obtener la información del partido.');
-    }
-} // end getMatch
-
-/**
- * Busca una reserva por su chatId en las listas de jugadores de un partido.
- * @param {IMatchQuotasItem} infoMatchQuotas - Los datos del partido que incluyen las listas de jugadores.
- * @param {number} chatId - El chatId del jugador que se desea encontrar.
- * @returns {IPlayerInformationItem | undefined} - La información del jugador encontrado o undefined si no se encuentra.
- */
-function findReservationByChatId(infoMatchQuotas: IMatchQuotasItem, chatId: number): IPlayerInformationItem | undefined {
-    // Busca si existe alguna reserva en las diferentes listas de jugadores.
-    const findInList = (playerList: IPlayerInformationItem[]) => playerList.find((player) => Number(player.chatId) === chatId);
-
-    const goalkeeper = findInList(infoMatchQuotas.goalkeepers);
-    const player = findInList(infoMatchQuotas.players);
-    const substitute = findInList(infoMatchQuotas.substitutes);
-
-    return goalkeeper || player || substitute;
-} // end findReservationByChatId
+    // Mensaje de confirmación de reserva para el usuario
+    ctx.replyWithMarkdownV2(Global.MSG_RESERVE_SUCCESS);
+}); // end reserveSpot
 
 /**
  * Imprime una lista de jugadores en formato tabular.
@@ -203,7 +155,7 @@ function findReservationByChatId(infoMatchQuotas: IMatchQuotasItem, chatId: numb
  */
 async function printListQuotas(chatId: number): Promise<string> {
     try {
-        const infoMatchQuotas: IMatchQuotasItem = await readFile(Global.FILEPATH_MATCHQUOTAS);
+        const infoMatchQuotas: IMatchQuotasItem = await _matchQuotasService.getAllMatchQuotas();
 
         // Formatea las filas de jugadores para cada categoría.
         const bodyGoalkeeper = formattedRowPlayer(infoMatchQuotas.goalkeepers, chatId);

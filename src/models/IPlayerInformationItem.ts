@@ -5,9 +5,10 @@
  * @interface IPlayerInformationItem
  */
 export interface IPlayerInformationItem {
-    chatId: string,
+    chatId: number,
     fullName: string,
     postion: string,
     dateTimeReservation: string,
+    dateTimeCancellation?: string,
     pay: boolean,
 } // end IPlayerInformationItem
