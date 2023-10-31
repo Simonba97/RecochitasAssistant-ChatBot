@@ -1,20 +1,12 @@
 {
-  "match-19_10_2023": [
+  "match-31_10_2023": [
     {
-      "dateTimeReservation": "27/10/2023 00:41:10",
-      "fullName": "Simón Bustamante",
+      "dateTimeReservation": "30/10/2023 17:44:40",
+      "fullName": "Alejo",
       "pay": false,
       "postion": "defence",
-      "chatId": 1699289627,
-      "dateTimeCancellation": "27/10/2023 00:41:25"
-    },
-    {
-      "dateTimeReservation": "27/10/2023 00:42:02",
-      "fullName": "Simón Bustamante",
-      "pay": false,
-      "postion": "forward",
-      "chatId": 1699289627,
-      "dateTimeCancellation": "27/10/2023 00:42:12"
+      "chatId": 1122521518,
+      "dateTimeCancellation": "30/10/2023 18:04:34"
     }
   ]
 }

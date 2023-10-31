@@ -19,11 +19,15 @@ const _infoMatchService: InfoMatchService = new InfoMatchService(_fileService);
 const _matchQuotasService: MatchQuotasService = new MatchQuotasService(_fileService);
 const _reservationCancellationHistoryService: ReservationCancellationHistoryService = new ReservationCancellationHistoryService(_fileService);
 
+/* Variable de estado para controlar los procesos */
+//let isProcessing = false;
+
 // Maneja mensajes de texto
 bot.on('text', async (ctx) => {
 
     // Consulta de información del partido 
-    const infoMatchData: IInfoMatchItem = await _infoMatchService.getMatch();
+    let infoMatchData: IInfoMatchItem | undefined = undefined;
+    infoMatchData = await _infoMatchService.getMatch();
 
     if (infoMatchData.available) {
         // Crear un teclado personalizado con opciones
@@ -49,6 +53,13 @@ bot.on('text', async (ctx) => {
  * @memberof bot.ts
  */
 bot.action('infoGame', async (ctx) => {
+    // Eliminamos opciones
+    await ctx.deleteMessage();
+
+    /* // Evaluamos si hay algún proceso activo
+    if (isProcessing) return;
+    // Activamos bandera de proceso activo
+    isProcessing = true; */
 
     let message: string = "";
 
@@ -69,14 +80,22 @@ bot.action('infoGame', async (ctx) => {
     // Respuesta del ChatBot
     ctx.replyWithMarkdownV2(message);
 
+    /* // Finalizamos bandera de proceso activo
+    isProcessing = false; */
+
 }); // end infoGame
 
 bot.action('seeListQuotas', async (ctx) => {
+    // Eliminamos opciones
+    await ctx.deleteMessage();
+
     const response = await printListQuotas(Number(ctx.update.callback_query.message?.chat.id));
     ctx.replyWithMarkdownV2(response);
 }); // end seeListQuotas
 
 bot.action('reserveSpot', async (ctx) => {
+    // Eliminamos opciones
+    await ctx.deleteMessage();
 
     // Buscamos si ya existe una reserva por el usuario
     const messageData: any = ctx.update.callback_query.message;
@@ -95,17 +114,37 @@ bot.action('reserveSpot', async (ctx) => {
 
     // Enviar un mensaje con el teclado
     ctx.reply('¿DE QUÉ JUGÁS? 🤔', options);
-
 }); // end reserveSpot
 
-
-bot.action('removeSpot', async (ctx) => {
+bot.action(/typePlayer.*/, async (ctx) => {
+    // Eliminamos opciones
+    await ctx.deleteMessage();
 
     // Buscamos si ya existe una reserva por el usuario
     const messageData: any = ctx.update.callback_query.message;
     const haveReservation = await _matchQuotasService.getReservationByChatId(messageData.chat.id);
 
     // Control para que no se pueda reservar si ya tiene una reserva activa
+    if (haveReservation) {
+        ctx.replyWithMarkdownV2(Global.MSG_RESERVE_FAIL);
+        return;
+    }
+
+    await _matchQuotasService.addReserve(messageData, ctx.match[0]);
+
+    // Mensaje de confirmación de reserva para el usuario
+    ctx.replyWithMarkdownV2(Global.MSG_RESERVE_SUCCESS);
+}); // end reserveSpot
+
+bot.action('removeSpot', async (ctx) => {
+    // Eliminamos opciones
+    await ctx.deleteMessage();
+
+    // Buscamos si ya existe una reserva por el usuario
+    const messageData: any = ctx.update.callback_query.message;
+    const haveReservation = await _matchQuotasService.getReservationByChatId(messageData.chat.id);
+
+    // Control para que no se pueda cancelar si no tiene una reserva activa
     if (!haveReservation) {
         ctx.replyWithMarkdownV2(Global.MSG_NO_RESERVE_SPOT);
         return;
@@ -117,13 +156,25 @@ bot.action('removeSpot', async (ctx) => {
 
     ctx.replyWithMarkdownV2(Global.MSG_DESCRIPTION_CONFIRM_REMOVE_SPOT);
     ctx.reply(Global.MSG_TITLE_CONFIRM_REMOVE_SPOT, confirmOptions);
-
 }); // end manageSpot
 
 bot.action(/confirmRemoveSpot.*/, async (ctx) => {
+    // Eliminamos opciones
+    ctx.deleteMessage()
+
     const confirmationRemoveSpot: boolean = ctx.match[0].replace('confirmRemoveSpot_', '') === 'true';
     if (!confirmationRemoveSpot) {
         ctx.replyWithMarkdownV2('No se cancelo tu reserva');
+        return;
+    }
+
+    // Buscamos si ya existe una reserva por el usuario
+    const messageData: any = ctx.update.callback_query.message;
+    const haveReservation = await _matchQuotasService.getReservationByChatId(messageData.chat.id);
+
+    // Control para que no se pueda cancelar si no tiene una reserva activa
+    if (!haveReservation) {
+        ctx.replyWithMarkdownV2(Global.MSG_NO_RESERVE_SPOT);
         return;
     }
 
@@ -133,20 +184,15 @@ bot.action(/confirmRemoveSpot.*/, async (ctx) => {
     /* Cancelación de la reserva */
     const reservationPlayer: IPlayerInformationItem | undefined = await _matchQuotasService.removeReserve(chatId);
     /* Adición del Historial de cancelación */
-    await _reservationCancellationHistoryService.addCancellation(reservationPlayer);
+    if (reservationPlayer) {
+        await _reservationCancellationHistoryService.addCancellation(reservationPlayer);
+    }
 
     // Mensaje de confirmación de la Cancelación
     ctx.replyWithMarkdownV2(Global.MSG_REMOVE_SPOT_SUCCESS);
-
 }); // end reserveSpot
 
-bot.action(/typePlayer.*/, async (ctx) => {
-    const messageData: any = ctx.update.callback_query.message;
-    _matchQuotasService.addReserve(messageData, ctx.match[0]);
 
-    // Mensaje de confirmación de reserva para el usuario
-    ctx.replyWithMarkdownV2(Global.MSG_RESERVE_SUCCESS);
-}); // end reserveSpot
 
 /**
  * Imprime una lista de jugadores en formato tabular.
