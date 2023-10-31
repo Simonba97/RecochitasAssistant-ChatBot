@@ -33,7 +33,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const telegraf_1 = require("telegraf");
-const config = __importStar(require("./config/config.json"));
+const dotenv = __importStar(require("dotenv"));
 const date_fns_1 = require("date-fns");
 const locale_1 = require("date-fns/locale");
 const Global_1 = require("./utils/Global");
@@ -42,16 +42,22 @@ const InfoMatchService_1 = require("./services/InfoMatchService");
 const MatchQuotasService_1 = require("./services/MatchQuotasService");
 const ReservationCancellationHistoryService_1 = require("./services/ReservationCancellationHistoryService");
 // Importa el módulo 'config'
-const bot = new telegraf_1.Telegraf(config.BOT_TOKEN);
+dotenv.config({ path: '.env' });
+const telegramToken = process.env.BOT_TOKEN;
+console.log(telegramToken);
+const bot = new telegraf_1.Telegraf(telegramToken);
 // Services
 const _fileService = new FileService_1.FileService();
 const _infoMatchService = new InfoMatchService_1.InfoMatchService(_fileService);
 const _matchQuotasService = new MatchQuotasService_1.MatchQuotasService(_fileService);
 const _reservationCancellationHistoryService = new ReservationCancellationHistoryService_1.ReservationCancellationHistoryService(_fileService);
+/* Variable de estado para controlar los procesos */
+//let isProcessing = false;
 // Maneja mensajes de texto
 bot.on('text', (ctx) => __awaiter(void 0, void 0, void 0, function* () {
     // Consulta de información del partido 
-    const infoMatchData = yield _infoMatchService.getMatch();
+    let infoMatchData = undefined;
+    infoMatchData = yield _infoMatchService.getMatch();
     if (infoMatchData.available) {
         // Crear un teclado personalizado con opciones
         const keyboard = telegraf_1.Markup.inlineKeyboard([
@@ -74,6 +80,12 @@ bot.on('text', (ctx) => __awaiter(void 0, void 0, void 0, function* () {
  * @memberof bot.ts
  */
 bot.action('infoGame', (ctx) => __awaiter(void 0, void 0, void 0, function* () {
+    // Eliminamos opciones
+    yield ctx.deleteMessage();
+    /* // Evaluamos si hay algún proceso activo
+    if (isProcessing) return;
+    // Activamos bandera de proceso activo
+    isProcessing = true; */
     let message = "";
     // Consulta de información del partido
     const infoMatchData = yield _infoMatchService.getMatch();
@@ -88,13 +100,19 @@ bot.action('infoGame', (ctx) => __awaiter(void 0, void 0, void 0, function* () {
         .replace('{{price}}', infoMatchData.price);
     // Respuesta del ChatBot
     ctx.replyWithMarkdownV2(message);
+    /* // Finalizamos bandera de proceso activo
+    isProcessing = false; */
 })); // end infoGame
 bot.action('seeListQuotas', (ctx) => __awaiter(void 0, void 0, void 0, function* () {
     var _a;
+    // Eliminamos opciones
+    yield ctx.deleteMessage();
     const response = yield printListQuotas(Number((_a = ctx.update.callback_query.message) === null || _a === void 0 ? void 0 : _a.chat.id));
     ctx.replyWithMarkdownV2(response);
 })); // end seeListQuotas
 bot.action('reserveSpot', (ctx) => __awaiter(void 0, void 0, void 0, function* () {
+    // Eliminamos opciones
+    yield ctx.deleteMessage();
     // Buscamos si ya existe una reserva por el usuario
     const messageData = ctx.update.callback_query.message;
     const haveReservation = yield _matchQuotasService.getReservationByChatId(messageData.chat.id);
@@ -110,11 +128,28 @@ bot.action('reserveSpot', (ctx) => __awaiter(void 0, void 0, void 0, function* (
     // Enviar un mensaje con el teclado
     ctx.reply('¿DE QUÉ JUGÁS? 🤔', options);
 })); // end reserveSpot
-bot.action('removeSpot', (ctx) => __awaiter(void 0, void 0, void 0, function* () {
+bot.action(/typePlayer.*/, (ctx) => __awaiter(void 0, void 0, void 0, function* () {
+    // Eliminamos opciones
+    yield ctx.deleteMessage();
     // Buscamos si ya existe una reserva por el usuario
     const messageData = ctx.update.callback_query.message;
     const haveReservation = yield _matchQuotasService.getReservationByChatId(messageData.chat.id);
     // Control para que no se pueda reservar si ya tiene una reserva activa
+    if (haveReservation) {
+        ctx.replyWithMarkdownV2(Global_1.Global.MSG_RESERVE_FAIL);
+        return;
+    }
+    yield _matchQuotasService.addReserve(messageData, ctx.match[0]);
+    // Mensaje de confirmación de reserva para el usuario
+    ctx.replyWithMarkdownV2(Global_1.Global.MSG_RESERVE_SUCCESS);
+})); // end reserveSpot
+bot.action('removeSpot', (ctx) => __awaiter(void 0, void 0, void 0, function* () {
+    // Eliminamos opciones
+    yield ctx.deleteMessage();
+    // Buscamos si ya existe una reserva por el usuario
+    const messageData = ctx.update.callback_query.message;
+    const haveReservation = yield _matchQuotasService.getReservationByChatId(messageData.chat.id);
+    // Control para que no se pueda cancelar si no tiene una reserva activa
     if (!haveReservation) {
         ctx.replyWithMarkdownV2(Global_1.Global.MSG_NO_RESERVE_SPOT);
         return;
@@ -127,9 +162,19 @@ bot.action('removeSpot', (ctx) => __awaiter(void 0, void 0, void 0, function* ()
 })); // end manageSpot
 bot.action(/confirmRemoveSpot.*/, (ctx) => __awaiter(void 0, void 0, void 0, function* () {
     var _b;
+    // Eliminamos opciones
+    ctx.deleteMessage();
     const confirmationRemoveSpot = ctx.match[0].replace('confirmRemoveSpot_', '') === 'true';
     if (!confirmationRemoveSpot) {
         ctx.replyWithMarkdownV2('No se cancelo tu reserva');
+        return;
+    }
+    // Buscamos si ya existe una reserva por el usuario
+    const messageData = ctx.update.callback_query.message;
+    const haveReservation = yield _matchQuotasService.getReservationByChatId(messageData.chat.id);
+    // Control para que no se pueda cancelar si no tiene una reserva activa
+    if (!haveReservation) {
+        ctx.replyWithMarkdownV2(Global_1.Global.MSG_NO_RESERVE_SPOT);
         return;
     }
     /* Información del jugador a cancelar */
@@ -137,15 +182,11 @@ bot.action(/confirmRemoveSpot.*/, (ctx) => __awaiter(void 0, void 0, void 0, fun
     /* Cancelación de la reserva */
     const reservationPlayer = yield _matchQuotasService.removeReserve(chatId);
     /* Adición del Historial de cancelación */
-    yield _reservationCancellationHistoryService.addCancellation(reservationPlayer);
+    if (reservationPlayer) {
+        yield _reservationCancellationHistoryService.addCancellation(reservationPlayer);
+    }
     // Mensaje de confirmación de la Cancelación
     ctx.replyWithMarkdownV2(Global_1.Global.MSG_REMOVE_SPOT_SUCCESS);
-})); // end reserveSpot
-bot.action(/typePlayer.*/, (ctx) => __awaiter(void 0, void 0, void 0, function* () {
-    const messageData = ctx.update.callback_query.message;
-    _matchQuotasService.addReserve(messageData, ctx.match[0]);
-    // Mensaje de confirmación de reserva para el usuario
-    ctx.replyWithMarkdownV2(Global_1.Global.MSG_RESERVE_SUCCESS);
 })); // end reserveSpot
 /**
  * Imprime una lista de jugadores en formato tabular.

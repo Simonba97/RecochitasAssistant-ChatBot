@@ -22,7 +22,12 @@ const _reservationCancellationHistoryService: ReservationCancellationHistoryServ
 /* Variable de estado para controlar los procesos */
 //let isProcessing = false;
 
-// Maneja mensajes de texto
+/**
+ * Maneja las interacciones de los usuarios con el bot a través de mensajes de texto.
+ * Esta función consulta información del partido y responde a los usuarios con opciones interactivas.
+ * @param {Context} ctx - El contexto de la conversación del usuario con el bot.
+ * @memberof bot.ts
+ */
 bot.on('text', async (ctx) => {
 
     // Consulta de información del partido 
@@ -85,6 +90,12 @@ bot.action('infoGame', async (ctx) => {
 
 }); // end infoGame
 
+/**
+ * Maneja la acción del usuario para ver la lista de cupos disponibles en un partido.
+ * Esta función elimina las opciones de acción previas y muestra la lista de cupos disponibles al usuario.
+ * @param {Context} ctx - El contexto de la conversación del usuario con el bot.
+ * @memberof bot.ts
+ */
 bot.action('seeListQuotas', async (ctx) => {
     // Eliminamos opciones
     await ctx.deleteMessage();
@@ -93,6 +104,13 @@ bot.action('seeListQuotas', async (ctx) => {
     ctx.replyWithMarkdownV2(response);
 }); // end seeListQuotas
 
+/**
+ * Maneja la acción del usuario para reservar un cupo en el partido.
+ * Esta función elimina las opciones de acción previas y permite al usuario seleccionar su posición en el partido.
+ * Controla que un usuario no pueda reservar si ya tiene una reserva activa.
+ * @param {Context} ctx - El contexto de la conversación del usuario con el bot.
+ * @memberof bot.ts
+ */
 bot.action('reserveSpot', async (ctx) => {
     // Eliminamos opciones
     await ctx.deleteMessage();
@@ -116,6 +134,13 @@ bot.action('reserveSpot', async (ctx) => {
     ctx.reply('¿DE QUÉ JUGÁS? 🤔', options);
 }); // end reserveSpot
 
+/**
+ * Maneja la acción del usuario para seleccionar su posición en el partido.
+ * Esta función elimina las opciones de acción previas y permite al usuario seleccionar su posición en el partido.
+ * Controla que un usuario no pueda reservar si ya tiene una reserva activa.
+ * @param {Context} ctx - El contexto de la conversación del usuario con el bot.
+ * @memberof bot.ts
+*/
 bot.action(/typePlayer.*/, async (ctx) => {
     // Eliminamos opciones
     await ctx.deleteMessage();
@@ -158,6 +183,13 @@ bot.action('removeSpot', async (ctx) => {
     ctx.reply(Global.MSG_TITLE_CONFIRM_REMOVE_SPOT, confirmOptions);
 }); // end manageSpot
 
+/**
+ * Maneja la acción del usuario para cancelar su reserva en el partido.
+ * Esta función elimina las opciones de acción previas y permite al usuario confirmar o cancelar la cancelación de su reserva.
+ * Controla que un usuario no pueda cancelar si no tiene una reserva activa.
+ * @param {Context} ctx - El contexto de la conversación del usuario con el bot.
+ * @memberof bot.ts
+ */
 bot.action(/confirmRemoveSpot.*/, async (ctx) => {
     // Eliminamos opciones
     ctx.deleteMessage()
